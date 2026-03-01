@@ -19,10 +19,8 @@ Manual red-teaming is slow, inconsistent, and does not scale. Security teams tes
 One command. Full pipeline.
 
 ```
-securegit hf full-pipeline \
-  --model Qwen/Qwen2.5-7B-Instruct \
-  --hf-org ArmyknifeLabs \
-  --provider huggingface
+securegit hf full-pipeline Qwen/Qwen2.5-7B-Instruct \
+  --hf-org ArmyknifeLabs
 ```
 
 This runs four stages back-to-back:
@@ -199,10 +197,8 @@ cargo install securegit
 export HF_TOKEN=hf_your_token_here
 
 # Scan, harden, verify, and publish in one command
-securegit hf full-pipeline \
-  --model Qwen/Qwen2.5-7B-Instruct \
-  --hf-org YourOrg \
-  --provider huggingface
+securegit hf full-pipeline Qwen/Qwen2.5-7B-Instruct \
+  --hf-org YourOrg
 ```
 
 ### Run Individual Steps
