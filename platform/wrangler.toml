@@ -1,0 +1,39 @@
+name = "armyknife-control-plane"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database - multi-tenant state
+[[d1_databases]]
+binding = "DB"
+database_name = "armyknife-control-plane"
+database_id = "REPLACE_ME" # Set after `wrangler d1 create armyknife-control-plane`
+migrations_dir = "migrations"
+
+# KV Namespace - ephemeral job state
+[[kv_namespaces]]
+binding = "JOB_STATE"
+id = "REPLACE_ME" # Set after `wrangler kv namespace create JOB_STATE`
+
+# R2 Bucket - hardened model storage (zero egress)
+[[r2_buckets]]
+binding = "MODEL_STORE"
+bucket_name = "armyknife-models"
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"
+HF_API_BASE = "https://huggingface.co/api"
+HF_AUTOTRAIN_API = "https://huggingface.co/api/autotrain"
+
+# Secrets (set via `wrangler secret put`):
+# HF_TOKEN - HuggingFace API token
+# JWT_SECRET - for signing auth tokens
+# WEBHOOK_SECRET - for HF webhook verification
+
+# Routes
+# routes = [{ pattern = "api.armyknifelabs.com/*", zone_name = "armyknifelabs.com" }]
+
+# Dev settings
+[dev]
+port = 8787

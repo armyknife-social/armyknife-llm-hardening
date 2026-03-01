@@ -1,5 +1,10 @@
 # armyknife-llm-hardening
 
+> **Looking for the Enterprise Control Plane?** This CLI pipeline is the open-source community engine.
+> For multi-cloud CI/CD integration, private model registry management, SOC2 compliance dashboards,
+> multi-tenant RBAC, and distributed runner orchestration, contact us for the
+> **[ArmyKnife Labs Enterprise Control Plane](https://armyknifelabs.com/enterprise)**.
+
 **Automated LLM security hardening pipeline -- scan, harden, verify, publish.**
 
 [![armyknife-llm-redteam on crates.io](https://img.shields.io/crates/v/armyknife-llm-redteam)](https://crates.io/crates/armyknife-llm-redteam)
