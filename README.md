@@ -4,8 +4,6 @@
 
 [![armyknife-llm-redteam on crates.io](https://img.shields.io/crates/v/armyknife-llm-redteam)](https://crates.io/crates/armyknife-llm-redteam)
 [![securegit on crates.io](https://img.shields.io/crates/v/securegit)](https://crates.io/crates/securegit)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE)
-
 ---
 
 ## The Problem
@@ -20,7 +18,7 @@ One command. Full pipeline.
 
 ```
 securegit hf full-pipeline Qwen/Qwen2.5-7B-Instruct \
-  --hf-org ArmyknifeLabs
+  --hf-org YourOrgOrUsername
 ```
 
 This runs four stages back-to-back:
@@ -330,4 +328,4 @@ cargo install --path .
 
 ## License
 
-MIT OR Apache-2.0
+Proprietary. All rights reserved.
