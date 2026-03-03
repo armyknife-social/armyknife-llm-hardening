@@ -1,0 +1,233 @@
+name: "Production: Batch LLM Hardening"
+
+on:
+  workflow_dispatch:
+    inputs:
+      hf_org:
+        description: "HuggingFace organization to publish hardened models"
+        required: true
+        default: "ArmyknifeLabs"
+        type: string
+      min_fix_rate:
+        description: "Minimum fix rate to pass (0.0 - 1.0)"
+        required: false
+        default: "0.30"
+        type: string
+  schedule:
+    # Weekly: Monday 6am UTC
+    - cron: "0 6 * * 1"
+
+jobs:
+  harden:
+    name: "Harden: ${{ matrix.model_name }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include:
+          - model_id: "Qwen/Qwen3-8B"
+            model_name: "Qwen3-8B"
+          - model_id: "Qwen/Qwen2.5-7B-Instruct"
+            model_name: "Qwen2.5-7B-Instruct"
+          - model_id: "meta-llama/Meta-Llama-3.1-8B-Instruct"
+            model_name: "Meta-Llama-3.1-8B-Instruct"
+          - model_id: "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+            model_name: "DeepSeek-R1-Distill-Qwen-7B"
+          - model_id: "deepseek-ai/DeepSeek-R1-Distill-Llama-8B"
+            model_name: "DeepSeek-R1-Distill-Llama-8B"
+          - model_id: "google/gemma-2-9b-it"
+            model_name: "gemma-2-9b-it"
+          - model_id: "ibm-granite/granite-3.3-8b-instruct"
+            model_name: "granite-3.3-8b-instruct"
+          - model_id: "tiiuae/Falcon3-7B-Instruct"
+            model_name: "Falcon3-7B-Instruct"
+          - model_id: "mistralai/Mistral-7B-Instruct-v0.3"
+            model_name: "Mistral-7B-Instruct-v0.3"
+          - model_id: "nvidia/Llama-3.1-Nemotron-Nano-8B-v1"
+            model_name: "Llama-3.1-Nemotron-Nano-8B-v1"
+          - model_id: "microsoft/Phi-4-mini-instruct"
+            model_name: "Phi-4-mini-instruct"
+
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install armyknife-llm-redteam
+        run: cargo install armyknife-llm-redteam
+
+      - name: Install securegit
+        run: cargo install securegit
+
+      - name: "Run full hardening pipeline: ${{ matrix.model_name }}"
+        run: |
+          securegit hf full-pipeline \
+            "${{ matrix.model_id }}" \
+            --hf-org "${{ inputs.hf_org || 'ArmyknifeLabs' }}" \
+            --min-fix-rate "${{ inputs.min_fix_rate || '0.30' }}"
+
+      - name: Upload scan results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "scan-results-${{ matrix.model_name }}"
+          path: scan-results/
+          retention-days: 90
+
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "verification-report-${{ matrix.model_name }}"
+          path: verification-report/
+          retention-days: 90
+
+      - name: Write job outcome
+        if: always()
+        run: |
+          mkdir -p job-outcome
+          if [ -f verification-report/verification-report.json ]; then
+            cp verification-report/verification-report.json job-outcome/report.json
+          fi
+          cat > job-outcome/outcome.json <<OUTCOME_EOF
+          {
+            "model_id": "${{ matrix.model_id }}",
+            "model_name": "${{ matrix.model_name }}",
+            "job_status": "${{ job.status }}"
+          }
+          OUTCOME_EOF
+
+      - name: Upload job outcome
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: "job-outcome-${{ matrix.model_name }}"
+          path: job-outcome/
+          retention-days: 90
+
+  summary:
+    name: Batch Summary
+    runs-on: ubuntu-latest
+    needs: harden
+    if: always()
+
+    steps:
+      - name: Download all job outcomes
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "job-outcome-*"
+          path: outcomes/
+
+      - name: Generate consolidated report
+        run: |
+          cat > generate_summary.py <<'PYSCRIPT'
+          import json
+          import os
+          import glob
+
+          models = []
+          outcomes_dir = "outcomes"
+
+          for outcome_dir in sorted(glob.glob(os.path.join(outcomes_dir, "job-outcome-*"))):
+              outcome_file = os.path.join(outcome_dir, "outcome.json")
+              report_file = os.path.join(outcome_dir, "report.json")
+
+              if not os.path.exists(outcome_file):
+                  continue
+
+              with open(outcome_file) as f:
+                  outcome = json.load(f)
+
+              model = {
+                  "model_id": outcome["model_id"],
+                  "model_name": outcome["model_name"],
+                  "job_status": outcome["job_status"],
+                  "total_findings": "-",
+                  "fixed": "-",
+                  "regressions": "-",
+                  "fix_rate": "-",
+                  "verdict": "-",
+              }
+
+              if os.path.exists(report_file):
+                  with open(report_file) as f:
+                      report = json.load(f)
+                  model["total_findings"] = report.get("total_findings", "-")
+                  model["fixed"] = report.get("fixed", "-")
+                  model["regressions"] = report.get("regression_count", report.get("regressions", "-"))
+                  fix_rate = report.get("fix_rate")
+                  if fix_rate is not None:
+                      model["fix_rate"] = f"{float(fix_rate) * 100:.1f}%"
+                  model["verdict"] = report.get("verdict", "-")
+
+              models.append(model)
+
+          # Generate markdown summary
+          lines = []
+          lines.append("# Batch LLM Hardening Results\n")
+          lines.append(f"**Models processed:** {len(models)}")
+
+          passed = sum(1 for m in models if m["job_status"] == "success")
+          failed = sum(1 for m in models if m["job_status"] != "success")
+          lines.append(f"**Passed:** {passed} | **Failed:** {failed}\n")
+
+          lines.append("| Model | Findings | Fixed | Regressions | Fix Rate | Verdict | Status |")
+          lines.append("|-------|----------|-------|-------------|----------|---------|--------|")
+
+          for m in models:
+              status_icon = "\u2705" if m["job_status"] == "success" else "\u274c"
+              lines.append(
+                  f"| `{m['model_name']}` "
+                  f"| {m['total_findings']} "
+                  f"| {m['fixed']} "
+                  f"| {m['regressions']} "
+                  f"| {m['fix_rate']} "
+                  f"| {m['verdict']} "
+                  f"| {status_icon} {m['job_status']} |"
+              )
+
+          lines.append("")
+
+          summary_md = "\n".join(lines)
+
+          # Write to GitHub Step Summary
+          summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "summary.md")
+          with open(summary_path, "a") as f:
+              f.write(summary_md)
+
+          # Write consolidated report artifact
+          os.makedirs("batch-summary", exist_ok=True)
+          with open("batch-summary/summary.md", "w") as f:
+              f.write(summary_md)
+          with open("batch-summary/results.json", "w") as f:
+              json.dump({"models": models, "total": len(models), "passed": passed, "failed": failed}, f, indent=2)
+
+          print(summary_md)
+          PYSCRIPT
+          python3 generate_summary.py
+
+      - name: Upload batch summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: batch-summary
+          path: batch-summary/
+          retention-days: 90
