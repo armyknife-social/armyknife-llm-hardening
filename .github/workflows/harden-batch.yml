@@ -21,7 +21,7 @@ on:
       tools_version:
         description: "Release tag for armyknife tools"
         required: false
-        default: "v1.6.0"
+        default: "v1.7.0"
         type: string
   schedule:
     # Weekly: Monday 6am UTC
@@ -31,36 +31,84 @@ jobs:
   harden:
     name: "Harden: ${{ matrix.model_name }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     strategy:
       fail-fast: false
       max-parallel: 5
       matrix:
         include:
-          # Verified available on HF serverless inference (March 2026)
+          # ═══════════════════════════════════════════════════════════
+          # Tier 1: OpenAI Open-Weight (Groq / SambaNova / Novita)
+          # ═══════════════════════════════════════════════════════════
+          - model_id: "openai/gpt-oss-20b"
+            model_name: "gpt-oss-20b"
+          - model_id: "openai/gpt-oss-120b"
+            model_name: "gpt-oss-120b"
+
+          # ═══════════════════════════════════════════════════════════
+          # Tier 2: Chinese Labs — Different safety training baselines
+          # ═══════════════════════════════════════════════════════════
+          - model_id: "moonshotai/Kimi-K2-Instruct"
+            model_name: "Kimi-K2-Instruct"
+          - model_id: "zai-org/GLM-5"
+            model_name: "GLM-5"
+          - model_id: "MiniMaxAI/MiniMax-M1-80k"
+            model_name: "MiniMax-M1-80k"
+          - model_id: "deepseek-ai/DeepSeek-R1"
+            model_name: "DeepSeek-R1"
+
+          # ═══════════════════════════════════════════════════════════
+          # Tier 3: Meta Llama — Baseline comparisons
+          # ═══════════════════════════════════════════════════════════
           - model_id: "meta-llama/Llama-3.1-8B-Instruct"
             model_name: "Llama-3.1-8B-Instruct"
           - model_id: "meta-llama/Llama-3.3-70B-Instruct"
             model_name: "Llama-3.3-70B-Instruct"
-          - model_id: "meta-llama/Llama-3.2-1B-Instruct"
-            model_name: "Llama-3.2-1B-Instruct"
-          - model_id: "google/gemma-3-27b-it"
-            model_name: "gemma-3-27b-it"
-          - model_id: "Qwen/Qwen2.5-72B-Instruct"
-            model_name: "Qwen2.5-72B-Instruct"
+
+          # ═══════════════════════════════════════════════════════════
+          # Tier 4: Cohere — Multilingual safety + RAG/tool-use focus
+          # ═══════════════════════════════════════════════════════════
+          - model_id: "CohereLabs/c4ai-command-r7b-12-2024"
+            model_name: "c4ai-command-r7b"
+          - model_id: "CohereLabs/aya-expanse-32b"
+            model_name: "aya-expanse-32b"
+
+          # ═══════════════════════════════════════════════════════════
+          # Tier 5: Qwen — Different generations + reasoning
+          # ═══════════════════════════════════════════════════════════
           - model_id: "Qwen/Qwen2.5-7B-Instruct"
             model_name: "Qwen2.5-7B-Instruct"
+          - model_id: "Qwen/Qwen3-32B"
+            model_name: "Qwen3-32B"
+
+          # ═══════════════════════════════════════════════════════════
+          # Tier 6: Academic / Research — Weaker guardrails
+          # ═══════════════════════════════════════════════════════════
+          - model_id: "allenai/OLMo-3-7B-Instruct"
+            model_name: "OLMo-3-7B-Instruct"
+          - model_id: "NousResearch/Hermes-3-Llama-3.1-8B"
+            model_name: "Hermes-3-Llama-3.1-8B"
+          - model_id: "HuggingFaceH4/zephyr-7b-beta"
+            model_name: "zephyr-7b-beta"
+
+          # ═══════════════════════════════════════════════════════════
+          # Tier 7: Google — Different safety stack
+          # ═══════════════════════════════════════════════════════════
+          - model_id: "google/gemma-3-27b-it"
+            model_name: "gemma-3-27b-it"
+
+          # ═══════════════════════════════════════════════════════════
+          # Tier 8: Reasoning models — CoT attack surface
+          # ═══════════════════════════════════════════════════════════
           - model_id: "Qwen/QwQ-32B"
             model_name: "QwQ-32B"
           - model_id: "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
             model_name: "DeepSeek-R1-Distill-Qwen-32B"
-          - model_id: "deepseek-ai/DeepSeek-R1"
-            model_name: "DeepSeek-R1"
 
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      TOOLS_VERSION: ${{ inputs.tools_version || 'v1.6.0' }}
+      TOOLS_VERSION: ${{ inputs.tools_version || 'v1.7.0' }}
 
     steps:
       - name: Checkout
